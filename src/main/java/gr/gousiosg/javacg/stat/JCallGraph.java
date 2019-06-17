@@ -35,7 +35,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
 import org.apache.bcel.classfile.ClassParser;
 
 /**
@@ -45,9 +44,7 @@ import org.apache.bcel.classfile.ClassParser;
  * @author Georgios Gousios <gousiosg@gmail.com>
  */
 public class JCallGraph {
-
     public static void main(String[] args) {
-
         Function<ClassParser, ClassVisitor> getClassVisitor =
                 (ClassParser cp) -> {
                     try {
@@ -59,28 +56,24 @@ public class JCallGraph {
 
         try {
             for (String arg : args) {
-
                 File f = new File(arg);
 
-                if (!f.exists()) {
-                    System.err.println("Jar file " + arg + " does not exist");
-                }
+                if (!f.exists()) System.err.println("Jar file " + arg + " does not exist");
 
                 try (JarFile jar = new JarFile(f)) {
                     Stream<JarEntry> entries = enumerationAsStream(jar.entries());
 
                     String methodCalls = entries.
                             flatMap(e -> {
-                                if (e.isDirectory() || !e.getName().endsWith(".class"))
+                                if (e.isDirectory() || !e.getName().endsWith(".class")) {
                                     return (new ArrayList<String>()).stream();
+                                }
 
                                 ClassParser cp = new ClassParser(arg, e.getName());
                                 return getClassVisitor.apply(cp).start().methodCalls().stream();
                             }).
                             map(s -> s + "\n").
-                            reduce(new StringBuilder(),
-                                    StringBuilder::append,
-                                    StringBuilder::append).toString();
+                            reduce(new StringBuilder(), StringBuilder::append, StringBuilder::append).toString();
 
                     BufferedWriter log = new BufferedWriter(new OutputStreamWriter(System.out));
                     log.write(methodCalls);
@@ -105,6 +98,9 @@ public class JCallGraph {
                                 return e.hasMoreElements();
                             }
                         },
-                        Spliterator.ORDERED), false);
+                        Spliterator.ORDERED
+                ),
+                false
+        );
     }
 }

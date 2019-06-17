@@ -17,17 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import org.apache.bcel.classfile.Attribute;
-import org.apache.bcel.classfile.BootstrapMethod;
-import org.apache.bcel.classfile.BootstrapMethods;
-import org.apache.bcel.classfile.ConstantCP;
-import org.apache.bcel.classfile.ConstantMethodHandle;
-import org.apache.bcel.classfile.ConstantNameAndType;
-import org.apache.bcel.classfile.ConstantPool;
-import org.apache.bcel.classfile.ConstantUtf8;
-import org.apache.bcel.classfile.JavaClass;
-import org.apache.bcel.classfile.Method;
+import org.apache.bcel.classfile.*;
 
 /**
  * {@link DynamicCallManager} provides facilities to retrieve information about
@@ -55,8 +45,7 @@ import org.apache.bcel.classfile.Method;
  * @author Matthieu Vergne <matthieu.vergne@gmail.com>
  */
 public class DynamicCallManager {
-    private static final Pattern BOOTSTRAP_CALL_PATTERN = Pattern
-            .compile("invokedynamic\t(\\d+):\\S+ \\S+ \\(\\d+\\)");
+    private static final Pattern BOOTSTRAP_CALL_PATTERN = Pattern.compile("invokedynamic\t(\\d+):\\S+ \\S+ \\(\\d+\\)");
     private static final int CALL_HANDLE_INDEX_ARGUMENT = 1;
 
     private final Map<String, String> dynamicCallers = new HashMap<>();
@@ -70,10 +59,7 @@ public class DynamicCallManager {
      * @see #linkCalls(Method)
      */
     public void retrieveCalls(Method method, JavaClass jc) {
-        if (method.isAbstract() || method.isNative()) {
-            // No code to consider
-            return;
-        }
+        if (method.isAbstract() || method.isNative()) return;
         ConstantPool cp = method.getConstantPool();
         BootstrapMethod[] boots = getBootstrapMethods(jc);
         String code = method.getCode().toString();
