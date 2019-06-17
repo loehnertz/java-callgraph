@@ -68,7 +68,7 @@ public class MethodStack {
 
         if (!stack.isEmpty()) {
             sb.setLength(0);
-            sb.append(stack.peek()).append(" ").append(callname);
+            sb.append(stack.peek()).append("\t").append(callname);
             sb.append("\n");
             fw.write(sb.toString());
         }
