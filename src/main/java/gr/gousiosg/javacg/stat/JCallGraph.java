@@ -33,6 +33,9 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.bcel.classfile.ClassParser;
@@ -44,46 +47,85 @@ import org.apache.bcel.classfile.ClassParser;
  * @author Georgios Gousios <gousiosg@gmail.com>
  */
 public class JCallGraph {
+    private List<File> jarFiles;
+    private List<Pattern> includedIdentifiers;
+    private List<ClassVisitor> classVisitors;
+    private BufferedWriter log;
+
     public static void main(String[] args) {
+        List<File> jarFiles = Arrays.stream(args).map(File::new).collect(Collectors.toList());
+        List<Pattern> includedIdentifiers = retrieveIncludedExcludedPatterns(System.getProperty("incl"));
+
+        JCallGraph jCallGraph = new JCallGraph(jarFiles, includedIdentifiers);
+        jCallGraph.addLog(new BufferedWriter(new OutputStreamWriter(System.out)));
+        jCallGraph.analyze();
+    }
+
+    public JCallGraph(List<File> jarFiles, List<Pattern> includedIdentifiers) {
+        this.jarFiles = jarFiles;
+        this.includedIdentifiers = includedIdentifiers;
+    }
+
+    public void analyze() {
         Function<ClassParser, ClassVisitor> getClassVisitor =
                 (ClassParser cp) -> {
                     try {
-                        return new ClassVisitor(cp.parse());
+                        return new ClassVisitor(cp.parse(), includedIdentifiers);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
                 };
 
         try {
-            for (String arg : args) {
-                File f = new File(arg);
+            for (File jarFile : jarFiles) {
+                if (!jarFile.exists()) System.err.println("Jar file " + jarFile.getPath() + " does not exist");
 
-                if (!f.exists()) System.err.println("Jar file " + arg + " does not exist");
-
-                try (JarFile jar = new JarFile(f)) {
+                try (JarFile jar = new JarFile(jarFile)) {
                     Stream<JarEntry> entries = enumerationAsStream(jar.entries());
 
-                    String methodCalls = entries.
-                            flatMap(e -> {
-                                if (e.isDirectory() || !e.getName().endsWith(".class")) {
-                                    return (new ArrayList<String>()).stream();
+                    this.classVisitors = entries
+                            .flatMap(e -> {
+                                if (e.isDirectory() || !e.getName().endsWith(".class") || !JCallGraph.identifierIsIncluded(e.getName().replace('/', '.'), includedIdentifiers)) {
+                                    return Stream.empty();
                                 }
 
-                                ClassParser cp = new ClassParser(arg, e.getName());
-                                return getClassVisitor.apply(cp).start().methodCalls().stream();
-                            }).
-                            map(s -> s + "\n").
-                            reduce(new StringBuilder(), StringBuilder::append, StringBuilder::append).toString();
+                                ClassParser cp = new ClassParser(jarFile.getAbsolutePath(), e.getName());
+                                return Stream.of(getClassVisitor.apply(cp).start());
+                            })
+                            .collect(Collectors.toList());
 
-                    BufferedWriter log = new BufferedWriter(new OutputStreamWriter(System.out));
-                    log.write(methodCalls);
-                    log.close();
+                    writeToLog();
                 }
             }
+
+            if (log != null) log.close();
         } catch (IOException e) {
             System.err.println("Error while processing jar: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    public void addLog(BufferedWriter log) {
+        this.log = log;
+    }
+
+    private void writeToLog() throws IOException {
+        if (log != null) {
+            for (ClassVisitor classVisitor : classVisitors) {
+                log.write(concatInvokations(classVisitor.getClassInvokations()));
+            }
+
+            for (ClassVisitor classVisitor : classVisitors) {
+                log.write(concatInvokations(classVisitor.getMethodCalls()));
+            }
+        }
+    }
+
+    private String concatInvokations(List<String> invokations) {
+        return invokations
+                .stream()
+                .map(s -> s + "\n")
+                .reduce(new StringBuilder(), StringBuilder::append, StringBuilder::append).toString();
     }
 
     public static <T> Stream<T> enumerationAsStream(Enumeration<T> e) {
@@ -102,5 +144,38 @@ public class JCallGraph {
                 ),
                 false
         );
+    }
+
+    public List<ClassVisitor> getClassVisitors() {
+        return classVisitors;
+    }
+
+    public static List<Pattern> retrieveIncludedExcludedPatterns(String argument) {
+        String[] patterns = argument.split(",");
+
+        if (patterns.length < 1) return null;
+
+        List<Pattern> compiledPatterns = new ArrayList<>();
+
+        for (String pattern : patterns) {
+            try {
+                compiledPatterns.add(Pattern.compile(pattern + "$"));
+            } catch (PatternSyntaxException pse) {
+                err("pattern: " + pattern + " not valid, ignoring");
+            }
+        }
+
+        return compiledPatterns;
+    }
+
+    private static void err(String msg) {
+    }
+
+    static boolean identifierIsIncluded(String identifier, List<Pattern> includedIdentifiers) {
+        if (includedIdentifiers == null) return true;
+        for (Pattern includedIdentifier : includedIdentifiers) {
+            if (includedIdentifier.matcher(identifier).matches()) return true;
+        }
+        return false;
     }
 }

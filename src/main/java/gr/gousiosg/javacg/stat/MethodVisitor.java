@@ -31,6 +31,7 @@ package gr.gousiosg.javacg.stat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
 import org.apache.bcel.classfile.JavaClass;
 import org.apache.bcel.generic.*;
 
@@ -41,17 +42,21 @@ import org.apache.bcel.generic.*;
  * Class copied with modifications from CJKM: http://www.spinellis.gr/sw/ckjm/
  */
 public class MethodVisitor extends EmptyVisitor {
+    public static String PREFIX = "M:";
+
     JavaClass visitedClass;
     private MethodGen mg;
     private ConstantPoolGen cp;
     private String format;
     private List<String> methodCalls = new ArrayList<>();
+    private List<Pattern> includedIdentifiers;
 
-    public MethodVisitor(MethodGen m, JavaClass jc) {
-        visitedClass = jc;
-        mg = m;
-        cp = mg.getConstantPool();
-        format = "M:" + visitedClass.getClassName() + ":" + mg.getName() + "(" + argumentList(mg.getArgumentTypes()) + ")" + " " + "(%s)%s:%s(%s)";
+    public MethodVisitor(MethodGen m, JavaClass jc, List<Pattern> includedIdentifiers) {
+        this.visitedClass = jc;
+        this.mg = m;
+        this.cp = mg.getConstantPool();
+        this.format = PREFIX + visitedClass.getClassName() + ":" + mg.getName() + "(" + argumentList(mg.getArgumentTypes()) + ")" + " " + "(%s)%s:%s(%s)";
+        this.includedIdentifiers = includedIdentifiers;
     }
 
     private String argumentList(Type[] arguments) {
@@ -80,26 +85,35 @@ public class MethodVisitor extends EmptyVisitor {
 
     @Override
     public void visitINVOKEVIRTUAL(INVOKEVIRTUAL i) {
+        if (!shouldVisit(i.getReferenceType(cp))) return;
         methodCalls.add(String.format(format, "M", i.getReferenceType(cp), i.getMethodName(cp), argumentList(i.getArgumentTypes(cp))));
     }
 
     @Override
     public void visitINVOKEINTERFACE(INVOKEINTERFACE i) {
+        if (!shouldVisit(i.getReferenceType(cp))) return;
         methodCalls.add(String.format(format, "I", i.getReferenceType(cp), i.getMethodName(cp), argumentList(i.getArgumentTypes(cp))));
     }
 
     @Override
     public void visitINVOKESPECIAL(INVOKESPECIAL i) {
+        if (!shouldVisit(i.getReferenceType(cp))) return;
         methodCalls.add(String.format(format, "O", i.getReferenceType(cp), i.getMethodName(cp), argumentList(i.getArgumentTypes(cp))));
     }
 
     @Override
     public void visitINVOKESTATIC(INVOKESTATIC i) {
+        if (!shouldVisit(i.getReferenceType(cp))) return;
         methodCalls.add(String.format(format, "S", i.getReferenceType(cp), i.getMethodName(cp), argumentList(i.getArgumentTypes(cp))));
     }
 
     @Override
     public void visitINVOKEDYNAMIC(INVOKEDYNAMIC i) {
+        if (!shouldVisit(i.getReferenceType(cp))) return;
         methodCalls.add(String.format(format, "D", i.getType(cp), i.getMethodName(cp), argumentList(i.getArgumentTypes(cp))));
+    }
+
+    private boolean shouldVisit(ReferenceType classIdentifier) {
+        return JCallGraph.identifierIsIncluded(classIdentifier.toString(), includedIdentifiers);
     }
 }
