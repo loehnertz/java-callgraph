@@ -45,9 +45,6 @@ public class Instrumenter implements ClassFileTransformer {
     static List<Pattern> pkgExcl = new ArrayList<>();
 
     public static void premain(String argument, Instrumentation instrumentation) {
-
-        // incl=com.foo.*,gr.bar.foo;excl=com.bar.foo.*
-
         if (argument == null) {
             err("Missing configuration argument");
             return;
@@ -172,6 +169,5 @@ public class Instrumenter implements ClassFileTransformer {
     }
 
     private static void err(String msg) {
-        //System.err.println("[JAVACG-DYN] " + msg);
     }
 }
